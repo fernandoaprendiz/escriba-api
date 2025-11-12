@@ -1,21 +1,19 @@
-# pages/4_Dashboard_Faturamento.py
+# pages/4_Dashboard_Faturamento.py (ALTERAÇÃO MÍNIMA PARA NOMES AMIGÁVEIS)
 
 import streamlit as st
 import pandas as pd
 import io
 from datetime import date, timedelta
-import sys
-import os
-
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-from admin_panel_main import headers, get_all_accounts
-from admin_panel_main import get_master_billing_report, get_detailed_billing_jobs
+from decimal import Decimal
+from shared_funcs import get_all_accounts, get_master_billing_report, get_detailed_billing_jobs
 
 if not st.session_state.get('is_authenticated'):
     st.stop()
 
+API_KEY = st.session_state.api_key
+
 st.header("Dashboard de Faturamento")
-accounts = get_all_accounts(headers)
+accounts = get_all_accounts(API_KEY)
 if accounts:
     with st.form("billing_form"):
         account_options_billing = {"Todas as Contas (Resumo)": None}
@@ -36,10 +34,8 @@ if accounts:
         
         if start_date and end_date:
             with st.spinner("Gerando relatório..."):
-                # 1. Chamar o endpoint DETALHADO para a exportação
-                detailed_jobs = get_detailed_billing_jobs(str(start_date), str(end_date), report_id, headers)
-                # 2. Chamar o endpoint de RESUMO para as métricas da tela
-                summary_report = get_master_billing_report(str(start_date), str(end_date), report_id, headers)
+                detailed_jobs = get_detailed_billing_jobs(str(start_date), str(end_date), report_id, API_KEY)
+                summary_report = get_master_billing_report(str(start_date), str(end_date), report_id, API_KEY)
 
             if detailed_jobs and summary_report and summary_report.get('by_model'):
                 st.session_state['billing_report_data'] = {
@@ -64,15 +60,27 @@ if accounts:
         if by_model:
             st.subheader("Consumo Detalhado por Modelo")
             df_report = pd.DataFrame(by_model)
+            
+            # --- ADICIONADO: MAPA DE TRADUÇÃO DE NOMES ---
+            model_name_map = {
+                "gemini-2.5-flash-lite": "Modelo Ultra",
+                "gemini-2.5-flash": "Modelo Fast",
+                "gemini-2.5-pro": "Modelo Pro",
+            }
+            # Substitui os nomes técnicos pelos amigáveis, mantendo o original se não houver mapa
+            df_report['model'] = df_report['model'].map(model_name_map).fillna(df_report['model'])
+            # Renomeia a coluna para uma melhor exibição
+            df_report = df_report.rename(columns={'model': 'Modelo'})
+            # --- FIM DA ADIÇÃO ---
+            
             st.dataframe(df_report, use_container_width=True, hide_index=True)
 
         st.markdown("---")
         st.subheader("Exportar Relatório Detalhado")
         
-        # --- LÓGICA DE EXPORTAÇÃO DETALHADA COM FORMATO EXATO DO CLIENTE ---
+        # --- LÓGICA DE EXPORTAÇÃO (sem alterações) ---
         df_jobs = pd.DataFrame(report_data['jobs_breakdown'])
 
-        # 1. Renomear e Mapear Colunas
         df_jobs = df_jobs.rename(columns={
             'created_at': 'Data', 
             'account_name': 'Cartório', 
@@ -84,15 +92,12 @@ if accounts:
             'total_tokens': 'Tokens Brutos'
         })
 
-        # 2. Formatar e Reordenar Colunas
         df_jobs['Data'] = pd.to_datetime(df_jobs['Data']).dt.strftime('%d/%m/%Y %H:%M:%S')
-        df_jobs['Custo (R$)'] = df_jobs['Custo (R$)'].astype(float).round(8) # Para manter a precisão do custo
+        df_jobs['Custo (R$)'] = df_jobs['Custo (R$)'].astype(float).round(8)
 
-        # Colunas finais na ordem exata solicitada
         final_columns = ['Data', 'Cartório', 'Usuário', 'ID do Job', 'Prompt', 'Modelo', 'Custo (R$)', 'Tokens Brutos']
         df_export = df_jobs.reindex(columns=final_columns)
         
-        # 3. Gerar o arquivo Excel em memória
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
             df_export.to_excel(writer, index=False, sheet_name='RelatorioFaturamento')
