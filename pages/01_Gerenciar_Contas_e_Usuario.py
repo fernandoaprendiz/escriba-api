@@ -125,7 +125,7 @@ if accounts:
             
             st.markdown("###### Informações de Localização (Opcional)")
             col1, col2, col3 = st.columns([1, 2, 1])
-            with col1: cod_tri7 = st.number_input("Código TRI7", step=1, value=None, placeholder="Apenas números")
+            with col1: cod = st.number_input("Código", step=1, value=None, placeholder="Apenas números")
             with col2: cidade = st.text_input("Município")
             with col3: uf = st.text_input("UF", max_chars=2)
 
@@ -133,7 +133,8 @@ if accounts:
                 if new_account_name:
                     cidade_clean = cidade if cidade else None
                     uf_clean = uf.upper() if uf else None
-                    cod_tri7_clean = int(cod_tri7) if cod_tri7 else None
-                    if create_new_account(new_account_name, cod_tri7_clean, cidade_clean, uf_clean, API_KEY): 
+                    cod_clean = int(cod) if cod else None
+                    if create_new_account(new_account_name, cod_clean, cidade_clean, uf_clean, API_KEY): 
                         st.success(f"Conta '{new_account_name}' criada!"); st.cache_data.clear(); st.rerun()
                 else: st.warning("O nome da conta não pode ser vazio.")
+
